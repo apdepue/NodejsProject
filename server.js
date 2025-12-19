@@ -111,7 +111,7 @@ async function start() {
         // Create new user (in production, hash the password)
         const newUser = {
           username,
-          password, // WARNING: Never store plaintext passwords in production!
+          password,
           email,
           createdAt: new Date(),
         };

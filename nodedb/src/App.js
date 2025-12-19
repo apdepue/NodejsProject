@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import './App.css';
+
+const ID_FIELDS = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
 
 function App() {
   const [questions, setQuestions] = useState([]);
@@ -7,7 +9,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [currentPage, setCurrentPage] = useState('login'); // 'login' or 'register' or 'dashboard'
+  const [currentPage, setCurrentPage] = useState('login');
   
   // Login state
   const [username, setUsername] = useState('');
@@ -115,7 +117,6 @@ function App() {
         return;
       }
 
-      // After successful registration, switch to login
       setRegUsername('');
       setRegPassword('');
       setRegEmail('');
@@ -167,50 +168,19 @@ function App() {
     }
   };
 
-  // Heuristic matcher: returns true if answer seems to belong to question
-  const answerMatchesQuestion = (answer, question) => {
-    if (!answer || !question) return false;
 
-    // common field names that may hold the question number
-    const qFields = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
-    const aFields = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
-
-    // try exact field matches (prefer numeric/primitive comparison)
-    for (const qf of qFields) {
-      if (qf in question && question[qf] != null) {
-        for (const af of aFields) {
-          if (af in answer && answer[af] != null) {
-            if (String(question[qf]) === String(answer[af])) return true;
-          }
-        }
-      }
-    }
-
-    // fallback: look for a numeric token in question and answer text
-    try {
-      const qStr = JSON.stringify(question);
-      const aStr = JSON.stringify(answer);
-      // find first integer in question string
-      const m = qStr.match(/\b\d+\b/);
-      if (m && aStr.includes(m[0])) return true;
-    } catch (e) {}
-
-    return false;
-  };
-
-  const extractQuestionNumber = (question) => {
-    const fields = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
-    for (const f of fields) {
+  const extractQuestionNumber = useCallback((question) => {
+    for (const f of ID_FIELDS) {
       if (f in question && question[f] != null) return String(question[f]);
     }
-    // fallback: first numeric token in question text
+   
     try {
       const s = JSON.stringify(question);
       const m = s.match(/\b\d+\b/);
       if (m) return m[0];
     } catch (e) {}
     return null;
-  };
+  }, []);
 
   const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -219,11 +189,10 @@ function App() {
     const qNum = selectedQuestionNumber || extractQuestionNumber(question);
     if (!qNum) return [];
 
-    const fields = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
     const rx = new RegExp(`\\b${escapeRegExp(qNum)}\\b`);
 
     return answers.filter(a => {
-      for (const f of fields) {
+      for (const f of ID_FIELDS) {
         if (f in a && a[f] != null && String(a[f]) === qNum) return true;
       }
       try {
@@ -234,7 +203,7 @@ function App() {
     });
   };
 
-  async function fetchItems() {
+  const fetchItems = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -242,22 +211,19 @@ function App() {
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
 
-      // API should return { questions: { items: [...] }, answers: { items: [...] } }
       const q = (json.questions?.items || []).map(item => ({ ...item }));
       const a = (json.answers?.items || []).map(item => ({ ...item }));
 
       setQuestions(q);
       setAnswers(a);
 
-      // select first question by default if present and derive its number/answer
       if (q.length > 0) {
         const first = q[0];
         setSelectedQuestionId(String(first._id));
         const num = extractQuestionNumber(first);
         setSelectedQuestionNumber(num);
         const matches = (num ? a.filter(aItem => {
-          const fields = ['number','questionNumber','question_no','qn','qnum','questionId','question_id','qid','QNumber','QuestionNumber'];
-          for (const f of fields) {
+          for (const f of ID_FIELDS) {
             if (f in aItem && aItem[f] != null && String(aItem[f]) === String(num)) return true;
           }
           try {
@@ -273,13 +239,13 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [extractQuestionNumber]);
 
   useEffect(() => {
     if (isLoggedIn && currentPage === 'dashboard') {
       fetchItems();
     }
-  }, [isLoggedIn, currentPage]);
+  }, [isLoggedIn, currentPage, fetchItems]);
 
   // Register page
   if (!isLoggedIn && currentPage === 'register') {
