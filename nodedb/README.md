@@ -1,3 +1,6 @@
+This project used mongodb compass. DB structure consists of Steam_Loco_Forum as the db and 3 collections: Answers, Questions, and User_data.
+Check DEPENDENCIES.md for installations and dependencies.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
